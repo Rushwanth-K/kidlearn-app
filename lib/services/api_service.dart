@@ -1,7 +1,7 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-
 // This file handles ALL communication between Flutter and Node.js
 // Think of it as the translator between your app and your server
 
@@ -9,7 +9,7 @@ class ApiService {
 
   // Your Node.js server address
   // We use 10.0.2.2 for emulator, but for real phone we use your laptop IP
-  static const String baseUrl = 'http://172.16.121.253:3000';
+  static const String baseUrl = 'https://parole-scant-undertook.ngrok-free.dev';
 
   // Secure storage to save JWT token on the phone
   static const _storage = FlutterSecureStorage();
@@ -89,6 +89,7 @@ class ApiService {
         Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
           'Authorization': 'Bearer $token',
         },
       );
@@ -107,6 +108,7 @@ class ApiService {
         Uri.parse('$baseUrl/api/videos/history/$parentId'),
         headers: {
           'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
           'Authorization': 'Bearer $token',
         },
       );
@@ -114,5 +116,84 @@ class ApiService {
     } catch (e) {
       return [];
     }
+  }
+  // ── ADD CHILD ──
+  static Future<Map<String, dynamic>> addChild({
+    required int parentId,
+    required String name,
+    required int age,
+    required String interests,
+    required int avatar,
+    String pin = '0000',
+  }) async {
+    try {
+      final token = await getToken();
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/children/add'),
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'parent_id': parentId,
+          'name': name,
+          'age': age,
+          'pin': pin,
+          'interests': interests,
+          'avatar': avatar,
+        }),
+      );
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'error': 'Cannot connect to server'};
+    }
+  }
+
+// ── GET CHILDREN ──
+  static Future<List<dynamic>> getChildren(int parentId) async {
+    try {
+      final token = await getToken();
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/children/$parentId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
+          'Authorization': 'Bearer $token',
+        },
+      );
+      return jsonDecode(response.body);
+    } catch (e) {
+      return [];
+    }
+  }
+  // ── LOG WATCH HISTORY ──
+  static Future<void> logWatchHistory({
+    required int childId,
+    required int videoId,
+    int durationWatched = 0,
+  }) async {
+    try {
+      final token = await getToken();
+      await http.post(
+        Uri.parse('$baseUrl/api/videos/history'),
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'child_id': childId,
+          'video_id': videoId,
+          'duration_watched': durationWatched,
+        }),
+      );
+    } catch (e) {
+      debugPrint('Watch history error: $e');
+    }
+  }
+  // ── LOGOUT ──
+  static Future<void> logout() async {
+    await deleteToken();
   }
 }
