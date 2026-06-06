@@ -5,6 +5,7 @@ import 'offline_screen.dart';
 import 'parent_dashboard_screen.dart';
 import 'locked_screen.dart';
 import '../screen_time_service.dart';
+import '../services/api_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,10 +20,14 @@ class _HomeScreenState extends State<HomeScreen> {
   int limitSeconds = 2700;
   Timer? _homeTimer;
 
+  // ✅ NEW — stores the parent name loaded from secure storage
+  String _parentName = 'Parent';
+
   @override
   void initState() {
     super.initState();
     loadScreenTime();
+    _loadParentName(); // ✅ NEW — load name when screen opens
     _homeTimer = Timer.periodic(Duration(seconds: 1), (timer) {
       loadScreenTime();
     });
@@ -33,6 +38,15 @@ class _HomeScreenState extends State<HomeScreen> {
     _homeTimer?.cancel();
     super.dispose();
   }
+
+  // ✅ NEW — reads parent name saved during register/login
+  Future<void> _loadParentName() async {
+    final name = await ApiService.getParentName();
+    setState(() {
+      _parentName = name;
+    });
+  }
+
   Future<void> loadScreenTime() async {
     final used = await ScreenTimeService.getTodaySeconds();
     final limit = await ScreenTimeService.getLimit();
@@ -97,8 +111,9 @@ class _HomeScreenState extends State<HomeScreen> {
                               'Good morning 👋',
                               style: TextStyle(fontSize: 12, color: Color(0xFFAFA9EC)),
                             ),
+                            // ✅ CHANGED — was hardcoded 'Hi Arjun!', now dynamic
                             Text(
-                              'Hi Arjun!',
+                              'Hi $_parentName!',
                               style: TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.bold,

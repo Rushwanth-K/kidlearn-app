@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 // This file handles ALL communication between Flutter and Node.js
@@ -8,8 +8,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 class ApiService {
 
   // Your Node.js server address
-  // We use 10.0.2.2 for emulator, but for real phone we use your laptop IP
-  static const String baseUrl = 'https://parole-scant-undertook.ngrok-free.dev';
+  static const String baseUrl = 'https://kidlearn-backend-syxy.onrender.com';
 
   // Secure storage to save JWT token on the phone
   static const _storage = FlutterSecureStorage();
@@ -29,6 +28,16 @@ class ApiService {
     await _storage.delete(key: 'jwt_token');
   }
 
+  // ── SAVE PARENT NAME ──  ✅ NEW
+  static Future<void> saveParentName(String name) async {
+    await _storage.write(key: 'parent_name', value: name);
+  }
+
+  // ── GET PARENT NAME ──  ✅ NEW
+  static Future<String> getParentName() async {
+    return await _storage.read(key: 'parent_name') ?? 'Parent';
+  }
+
   // ── REGISTER ──
   static Future<Map<String, dynamic>> register(String name, String email,
       String password) async {
@@ -42,7 +51,14 @@ class ApiService {
           'password': password,
         }),
       );
-      return jsonDecode(response.body);
+      final data = jsonDecode(response.body);
+
+      // ✅ NEW — save name when register succeeds
+      if (data['error'] == null) {
+        await saveParentName(name);
+      }
+
+      return data;
     } catch (e) {
       return {'error': 'Cannot connect to server. Check your connection.'};
     }
@@ -66,6 +82,11 @@ class ApiService {
       // If login successful, save the token automatically
       if (data['token'] != null) {
         await saveToken(data['token']);
+
+        // ✅ NEW — save name from login response
+        if (data['parent'] != null && data['parent']['name'] != null) {
+          await saveParentName(data['parent']['name']);
+        }
       }
 
       return data;
@@ -100,7 +121,7 @@ class ApiService {
     }
   }
 
-// ── GET WATCH HISTORY ──
+  // ── GET WATCH HISTORY ──
   static Future<List<dynamic>> getWatchHistory(int parentId) async {
     try {
       final token = await getToken();
@@ -117,6 +138,7 @@ class ApiService {
       return [];
     }
   }
+
   // ── ADD CHILD ──
   static Future<Map<String, dynamic>> addChild({
     required int parentId,
@@ -150,7 +172,7 @@ class ApiService {
     }
   }
 
-// ── GET CHILDREN ──
+  // ── GET CHILDREN ──
   static Future<List<dynamic>> getChildren(int parentId) async {
     try {
       final token = await getToken();
@@ -167,6 +189,7 @@ class ApiService {
       return [];
     }
   }
+
   // ── LOG WATCH HISTORY ──
   static Future<void> logWatchHistory({
     required int childId,
@@ -192,6 +215,7 @@ class ApiService {
       debugPrint('Watch history error: $e');
     }
   }
+
   // ── LOGOUT ──
   static Future<void> logout() async {
     await deleteToken();
