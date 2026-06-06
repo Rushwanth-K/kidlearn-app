@@ -37,6 +37,16 @@ class ApiService {
   static Future<String> getParentName() async {
     return await _storage.read(key: 'parent_name') ?? 'Parent';
   }
+  // ── SAVE PARENT ID ──
+  static Future<void> saveParentId(int id) async {
+    await _storage.write(key: 'parent_id', value: id.toString());
+  }
+
+// ── GET PARENT ID ──
+  static Future<int> getParentId() async {
+    final id = await _storage.read(key: 'parent_id');
+    return int.tryParse(id ?? '0') ?? 0;
+  }
 
   // ── REGISTER ──
   static Future<Map<String, dynamic>> register(String name, String email,
@@ -56,6 +66,9 @@ class ApiService {
       // ✅ NEW — save name when register succeeds
       if (data['error'] == null) {
         await saveParentName(name);
+      }
+      if (data['parentId'] != null) {
+        await saveParentId(data['parentId']);
       }
 
       return data;
@@ -87,6 +100,9 @@ class ApiService {
         if (data['parent'] != null && data['parent']['name'] != null) {
           await saveParentName(data['parent']['name']);
         }
+      }
+      if (data['parent'] != null && data['parent']['id'] != null) {
+        await saveParentId(data['parent']['id']);
       }
 
       return data;

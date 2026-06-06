@@ -14,7 +14,6 @@ class ParentDashboardScreen extends StatefulWidget {
 class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
   Future<void> handleLogout() async {
-    // Show confirmation dialog
     bool? confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -51,10 +50,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     );
 
     if (confirm == true) {
-      // Clear JWT token
       await ApiService.logout();
-
-      // Navigate back to login screen and clear all routes
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (context) => LoginScreen()),
@@ -105,6 +101,12 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       watchHistory = history;
       isLoading = false;
     });
+  }
+
+  // ✅ Convert Cloudinary .mp4 URL → .jpg thumbnail
+  String getThumbnailUrl(String? videoUrl) {
+    if (videoUrl == null || videoUrl.isEmpty) return '';
+    return videoUrl.replaceAll('.mp4', '.jpg');
   }
 
   String formatDate(String dateStr) {
@@ -432,6 +434,9 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                           final bg = categoryBgColors[category] ?? Color(0xFFEEEDFE);
                           final icon = categoryIcons[category] ?? '🎬';
 
+                          // ✅ Get thumbnail URL from video URL
+                          final thumbnailUrl = getThumbnailUrl(item['url']);
+
                           return Container(
                             margin: EdgeInsets.only(bottom: 8),
                             padding: EdgeInsets.all(12),
@@ -443,14 +448,63 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                             child: Row(
                               children: [
 
-                                Container(
-                                  width: 44,
-                                  height: 44,
-                                  decoration: BoxDecoration(
-                                    color: bg,
-                                    borderRadius: BorderRadius.circular(10),
+                                // ✅ THUMBNAIL — real video thumbnail from Cloudinary
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: thumbnailUrl.isNotEmpty
+                                      ? Image.network(
+                                    thumbnailUrl,
+                                    width: 60,
+                                    height: 44,
+                                    fit: BoxFit.cover,
+                                    // ✅ If thumbnail fails to load, show emoji icon instead
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Container(
+                                        width: 60,
+                                        height: 44,
+                                        decoration: BoxDecoration(
+                                          color: bg,
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        child: Center(
+                                          child: Text(icon, style: TextStyle(fontSize: 20)),
+                                        ),
+                                      );
+                                    },
+                                    loadingBuilder: (context, child, loadingProgress) {
+                                      if (loadingProgress == null) return child;
+                                      // ✅ Show shimmer-like placeholder while loading
+                                      return Container(
+                                        width: 60,
+                                        height: 44,
+                                        decoration: BoxDecoration(
+                                          color: Color(0xFFEEEDFE),
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        child: Center(
+                                          child: SizedBox(
+                                            width: 16,
+                                            height: 16,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: Color(0xFF3C3489),
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  )
+                                      : Container(
+                                    width: 60,
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      color: bg,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Center(
+                                      child: Text(icon, style: TextStyle(fontSize: 20)),
+                                    ),
                                   ),
-                                  child: Center(child: Text(icon, style: TextStyle(fontSize: 20))),
                                 ),
 
                                 SizedBox(width: 12),
@@ -557,7 +611,6 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
             onPressed: () async {
               final newLimit = selectedMinutes * 60;
               setState(() => limitSeconds = newLimit);
-              // Save to SharedPreferences so Home screen can read it
               await ScreenTimeService.setLimit(newLimit);
               Navigator.pop(context);
             },

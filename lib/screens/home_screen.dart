@@ -20,14 +20,18 @@ class _HomeScreenState extends State<HomeScreen> {
   int limitSeconds = 2700;
   Timer? _homeTimer;
 
-  // ✅ NEW — stores the parent name loaded from secure storage
+  // ✅ stores the parent name loaded from secure storage
   String _parentName = 'Parent';
+
+  // ✅ NEW — stores the real parent ID loaded from secure storage
+  int _parentId = 0;
 
   @override
   void initState() {
     super.initState();
     loadScreenTime();
-    _loadParentName(); // ✅ NEW — load name when screen opens
+    _loadParentName();
+    _loadParentId(); // ✅ NEW — load real parentId when screen opens
     _homeTimer = Timer.periodic(Duration(seconds: 1), (timer) {
       loadScreenTime();
     });
@@ -39,11 +43,20 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  // ✅ NEW — reads parent name saved during register/login
+  // ✅ reads parent name saved during register/login
   Future<void> _loadParentName() async {
     final name = await ApiService.getParentName();
     setState(() {
       _parentName = name;
+    });
+  }
+
+  // ✅ NEW — reads real parentId saved during register/login
+  Future<void> _loadParentId() async {
+    final id = await ApiService.getParentId();
+    print('✅ Loaded parentId: $id'); // ADD THIS
+    setState(() {
+      _parentId = id;
     });
   }
 
@@ -383,7 +396,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => ParentDashboardScreen(parentId: 2),
+                            builder: (context) => ParentDashboardScreen(parentId: _parentId),
                           ),
                         ).then((_) => loadScreenTime()),
                         child: Container(
