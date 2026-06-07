@@ -18,31 +18,13 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          'Logout',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF3C3489),
-          ),
-        ),
-        content: Text(
-          'Are you sure you want to logout?',
-          style: TextStyle(fontSize: 13, color: Colors.grey),
-        ),
+        title: Text('Logout', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF3C3489))),
+        content: Text('Are you sure you want to logout?', style: TextStyle(fontSize: 13, color: Colors.grey)),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel', style: TextStyle(color: Colors.grey)),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text('Cancel', style: TextStyle(color: Colors.grey))),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Color(0xFFE24B4A),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Color(0xFFE24B4A), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
             child: Text('Logout', style: TextStyle(color: Colors.white)),
           ),
         ],
@@ -51,11 +33,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
     if (confirm == true) {
       await ApiService.logout();
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => LoginScreen()),
-            (route) => false,
-      );
+      Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => LoginScreen()), (route) => false);
     }
   }
 
@@ -63,6 +41,10 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   bool isLoading = true;
   int totalSeconds = 0;
   int limitSeconds = 2700;
+
+  // ✅ NEW — real child data
+  String _childName = 'Child';
+  int _childAge = 0;
 
   final Map<String, Color> categoryColors = {
     'Education':  Color(0xFF185FA5),
@@ -96,14 +78,33 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
   Future<void> loadDashboard() async {
     setState(() => isLoading = true);
-    final history = await ApiService.getWatchHistory(widget.parentId);
+
+    // ✅ Fetch watch history, children, and screen time together
+    final results = await Future.wait([
+      ApiService.getWatchHistory(widget.parentId),
+      ApiService.getChildren(widget.parentId),
+    ]);
+
+    final history = results[0] as List<dynamic>;
+    final children = results[1] as List<dynamic>;
+
+    final used = await ScreenTimeService.getTodaySeconds();
+    final limit = await ScreenTimeService.getLimit();
+
     setState(() {
       watchHistory = history;
       isLoading = false;
+      totalSeconds = used;
+      limitSeconds = limit;
+
+      // ✅ Show first child's real name and age
+      if (children.isNotEmpty) {
+        _childName = children[0]['name'] ?? 'Child';
+        _childAge = children[0]['age'] ?? 0;
+      }
     });
   }
 
-  // ✅ Convert Cloudinary .mp4 URL → .jpg thumbnail
   String getThumbnailUrl(String? videoUrl) {
     if (videoUrl == null || videoUrl.isEmpty) return '';
     return videoUrl.replaceAll('.mp4', '.jpg');
@@ -114,7 +115,6 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       final date = DateTime.parse(dateStr).toLocal();
       final now = DateTime.now();
       final diff = now.difference(date);
-
       if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
       if (diff.inHours < 24) return 'Today ${date.hour}:${date.minute.toString().padLeft(2, '0')} ${date.hour < 12 ? 'AM' : 'PM'}';
       if (diff.inDays == 1) return 'Yesterday';
@@ -139,12 +139,8 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     return watchHistory.where((item) {
       try {
         final date = DateTime.parse(item['watched_at']).toLocal();
-        return date.day == today.day &&
-            date.month == today.month &&
-            date.year == today.year;
-      } catch (e) {
-        return false;
-      }
+        return date.day == today.day && date.month == today.month && date.year == today.year;
+      } catch (e) { return false; }
     }).length;
   }
 
@@ -164,54 +160,30 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               padding: EdgeInsets.fromLTRB(16, 16, 16, 0),
               child: Column(
                 children: [
-
                   Row(
                     children: [
                       GestureDetector(
                         onTap: () => Navigator.pop(context),
-                        child: Container(
-                          width: 38,
-                          height: 38,
-                          decoration: BoxDecoration(
-                            color: Color(0xFF26215C),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Icon(Icons.arrow_back, color: Colors.white70, size: 18),
-                        ),
+                        child: Container(width: 38, height: 38, decoration: BoxDecoration(color: Color(0xFF26215C), borderRadius: BorderRadius.circular(10)),
+                            child: Icon(Icons.arrow_back, color: Colors.white70, size: 18)),
                       ),
                       SizedBox(width: 8),
                       GestureDetector(
                         onTap: () => handleLogout(),
-                        child: Container(
-                          width: 38,
-                          height: 38,
-                          decoration: BoxDecoration(
-                            color: Color(0xFF26215C),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Icon(Icons.logout, color: Color(0xFFE24B4A), size: 18),
-                        ),
+                        child: Container(width: 38, height: 38, decoration: BoxDecoration(color: Color(0xFF26215C), borderRadius: BorderRadius.circular(10)),
+                            child: Icon(Icons.logout, color: Color(0xFFE24B4A), size: 18)),
                       ),
                       SizedBox(width: 12),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Parent Dashboard',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-                          Text('Monitor your child\'s activity',
-                              style: TextStyle(fontSize: 10, color: Color(0xFFAFA9EC))),
+                          Text('Parent Dashboard', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                          Text('Monitor your child\'s activity', style: TextStyle(fontSize: 10, color: Color(0xFFAFA9EC))),
                         ],
                       ),
                       Spacer(),
-                      Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: Color(0xFFE24B4A),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Center(child: Text('🦁', style: TextStyle(fontSize: 20))),
-                      ),
+                      Container(width: 38, height: 38, decoration: BoxDecoration(color: Color(0xFFE24B4A), borderRadius: BorderRadius.circular(10)),
+                          child: Center(child: Text('🦁', style: TextStyle(fontSize: 20)))),
                     ],
                   ),
 
@@ -220,10 +192,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                   // Screen time card
                   Container(
                     padding: EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Color(0xFF26215C),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
+                    decoration: BoxDecoration(color: Color(0xFF26215C), borderRadius: BorderRadius.circular(14)),
                     child: Column(
                       children: [
                         Row(
@@ -232,31 +201,24 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text("Today's Screen Time",
-                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white)),
-                                Text('Child · Age 5',
-                                    style: TextStyle(fontSize: 10, color: Color(0xFFAFA9EC))),
+                                Text("Today's Screen Time", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white)),
+                                // ✅ CHANGED — real child name and age
+                                Text(
+                                  _childAge > 0 ? '$_childName · Age $_childAge' : _childName,
+                                  style: TextStyle(fontSize: 10, color: Color(0xFFAFA9EC)),
+                                ),
                               ],
                             ),
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
                                 RichText(
-                                  text: TextSpan(
-                                    children: [
-                                      TextSpan(
-                                        text: '${totalSeconds ~/ 60}',
-                                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFFE24B4A)),
-                                      ),
-                                      TextSpan(
-                                        text: ' min',
-                                        style: TextStyle(fontSize: 11, color: Color(0xFFAFA9EC)),
-                                      ),
-                                    ],
-                                  ),
+                                  text: TextSpan(children: [
+                                    TextSpan(text: '${totalSeconds ~/ 60}', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFFE24B4A))),
+                                    TextSpan(text: ' min', style: TextStyle(fontSize: 11, color: Color(0xFFAFA9EC))),
+                                  ]),
                                 ),
-                                Text('of ${limitSeconds ~/ 60} min limit',
-                                    style: TextStyle(fontSize: 10, color: Color(0xFFAFA9EC))),
+                                Text('of ${limitSeconds ~/ 60} min limit', style: TextStyle(fontSize: 10, color: Color(0xFFAFA9EC))),
                               ],
                             ),
                           ],
@@ -267,9 +229,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                           child: LinearProgressIndicator(
                             value: progress,
                             backgroundColor: Color(0xFF3C3489),
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              progress > 0.8 ? Colors.red : Color(0xFFE24B4A),
-                            ),
+                            valueColor: AlwaysStoppedAnimation<Color>(progress > 0.8 ? Colors.red : Color(0xFFE24B4A)),
                             minHeight: 8,
                           ),
                         ),
@@ -277,20 +237,13 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              '${(limitSeconds - totalSeconds) ~/ 60} min remaining',
-                              style: TextStyle(fontSize: 10, color: Color(0xFFAFA9EC)),
-                            ),
+                            Text('${(limitSeconds - totalSeconds) ~/ 60} min remaining', style: TextStyle(fontSize: 10, color: Color(0xFFAFA9EC))),
                             GestureDetector(
                               onTap: showLimitDialog,
                               child: Container(
                                 padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: Color(0xFFE24B4A),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Text('Set limit',
-                                    style: TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w500)),
+                                decoration: BoxDecoration(color: Color(0xFFE24B4A), borderRadius: BorderRadius.circular(20)),
+                                child: Text('Set limit', style: TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w500)),
                               ),
                             ),
                           ],
@@ -298,7 +251,6 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                       ],
                     ),
                   ),
-
                 ],
               ),
             ),
@@ -310,10 +262,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               child: Container(
                 decoration: BoxDecoration(
                   color: Color(0xFFF8F7FF),
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(24),
-                    topRight: Radius.circular(24),
-                  ),
+                  borderRadius: BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
                 ),
                 child: Column(
                   children: [
@@ -323,64 +272,32 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                       padding: EdgeInsets.fromLTRB(16, 16, 16, 0),
                       child: Row(
                         children: [
-                          Expanded(
-                            child: Container(
-                              padding: EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Color(0xFFEEEDFE), width: 0.5),
-                              ),
-                              child: Column(
-                                children: [
-                                  Text('$todayVideos',
-                                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF3C3489))),
-                                  Text('Videos today',
-                                      style: TextStyle(fontSize: 9, color: Colors.grey)),
-                                ],
-                              ),
-                            ),
-                          ),
+                          Expanded(child: Container(
+                            padding: EdgeInsets.all(12),
+                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Color(0xFFEEEDFE), width: 0.5)),
+                            child: Column(children: [
+                              Text('$todayVideos', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF3C3489))),
+                              Text('Videos today', style: TextStyle(fontSize: 9, color: Colors.grey)),
+                            ]),
+                          )),
                           SizedBox(width: 8),
-                          Expanded(
-                            child: Container(
-                              padding: EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Color(0xFFEEEDFE), width: 0.5),
-                              ),
-                              child: Column(
-                                children: [
-                                  Text('${watchHistory.length}',
-                                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFFE24B4A))),
-                                  Text('Total watched',
-                                      style: TextStyle(fontSize: 9, color: Colors.grey)),
-                                ],
-                              ),
-                            ),
-                          ),
+                          Expanded(child: Container(
+                            padding: EdgeInsets.all(12),
+                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Color(0xFFEEEDFE), width: 0.5)),
+                            child: Column(children: [
+                              Text('${watchHistory.length}', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFFE24B4A))),
+                              Text('Total watched', style: TextStyle(fontSize: 9, color: Colors.grey)),
+                            ]),
+                          )),
                           SizedBox(width: 8),
-                          Expanded(
-                            child: Container(
-                              padding: EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Color(0xFFEEEDFE), width: 0.5),
-                              ),
-                              child: Column(
-                                children: [
-                                  Text(
-                                    categoryIcons[topCategory] ?? '🎬',
-                                    style: TextStyle(fontSize: 22),
-                                  ),
-                                  Text('Top category',
-                                      style: TextStyle(fontSize: 9, color: Colors.grey)),
-                                ],
-                              ),
-                            ),
-                          ),
+                          Expanded(child: Container(
+                            padding: EdgeInsets.all(12),
+                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Color(0xFFEEEDFE), width: 0.5)),
+                            child: Column(children: [
+                              Text(categoryIcons[topCategory] ?? '🎬', style: TextStyle(fontSize: 22)),
+                              Text('Top category', style: TextStyle(fontSize: 9, color: Colors.grey)),
+                            ]),
+                          )),
                         ],
                       ),
                     ),
@@ -393,13 +310,8 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('Watch History',
-                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF3C3489))),
-                          GestureDetector(
-                            onTap: loadDashboard,
-                            child: Text('Refresh',
-                                style: TextStyle(fontSize: 11, color: Color(0xFFE24B4A))),
-                          ),
+                          Text('Watch History', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF3C3489))),
+                          GestureDetector(onTap: loadDashboard, child: Text('Refresh', style: TextStyle(fontSize: 11, color: Color(0xFFE24B4A)))),
                         ],
                       ),
                     ),
@@ -411,19 +323,13 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                       child: isLoading
                           ? Center(child: CircularProgressIndicator(color: Color(0xFFE24B4A)))
                           : watchHistory.isEmpty
-                          ? Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text('📺', style: TextStyle(fontSize: 50)),
-                          SizedBox(height: 12),
-                          Text('No watch history yet',
-                              style: TextStyle(color: Colors.grey, fontSize: 14, fontWeight: FontWeight.w500)),
-                          SizedBox(height: 6),
-                          Text('Videos your child watches will appear here',
-                              style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
-                              textAlign: TextAlign.center),
-                        ],
-                      )
+                          ? Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        Text('📺', style: TextStyle(fontSize: 50)),
+                        SizedBox(height: 12),
+                        Text('No watch history yet', style: TextStyle(color: Colors.grey, fontSize: 14, fontWeight: FontWeight.w500)),
+                        SizedBox(height: 6),
+                        Text('Videos your child watches will appear here', style: TextStyle(color: Colors.grey.shade400, fontSize: 12), textAlign: TextAlign.center),
+                      ])
                           : ListView.builder(
                         padding: EdgeInsets.symmetric(horizontal: 16),
                         itemCount: watchHistory.length,
@@ -433,137 +339,72 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                           final color = categoryColors[category] ?? Color(0xFF3C3489);
                           final bg = categoryBgColors[category] ?? Color(0xFFEEEDFE);
                           final icon = categoryIcons[category] ?? '🎬';
-
-                          // ✅ Get thumbnail URL from video URL
                           final thumbnailUrl = getThumbnailUrl(item['url']);
 
                           return Container(
                             margin: EdgeInsets.only(bottom: 8),
                             padding: EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Color(0xFFEEEDFE), width: 0.5),
-                            ),
+                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Color(0xFFEEEDFE), width: 0.5)),
                             child: Row(
                               children: [
-
-                                // ✅ THUMBNAIL — real video thumbnail from Cloudinary
                                 ClipRRect(
                                   borderRadius: BorderRadius.circular(10),
                                   child: thumbnailUrl.isNotEmpty
-                                      ? Image.network(
-                                    thumbnailUrl,
-                                    width: 60,
-                                    height: 44,
-                                    fit: BoxFit.cover,
-                                    // ✅ If thumbnail fails to load, show emoji icon instead
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return Container(
-                                        width: 60,
-                                        height: 44,
-                                        decoration: BoxDecoration(
-                                          color: bg,
-                                          borderRadius: BorderRadius.circular(10),
-                                        ),
-                                        child: Center(
-                                          child: Text(icon, style: TextStyle(fontSize: 20)),
-                                        ),
-                                      );
-                                    },
+                                      ? Image.network(thumbnailUrl, width: 60, height: 44, fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) => Container(
+                                      width: 60, height: 44,
+                                      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
+                                      child: Center(child: Text(icon, style: TextStyle(fontSize: 20))),
+                                    ),
                                     loadingBuilder: (context, child, loadingProgress) {
                                       if (loadingProgress == null) return child;
-                                      // ✅ Show shimmer-like placeholder while loading
                                       return Container(
-                                        width: 60,
-                                        height: 44,
-                                        decoration: BoxDecoration(
-                                          color: Color(0xFFEEEDFE),
-                                          borderRadius: BorderRadius.circular(10),
-                                        ),
-                                        child: Center(
-                                          child: SizedBox(
-                                            width: 16,
-                                            height: 16,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: Color(0xFF3C3489),
-                                            ),
-                                          ),
-                                        ),
+                                        width: 60, height: 44,
+                                        decoration: BoxDecoration(color: Color(0xFFEEEDFE), borderRadius: BorderRadius.circular(10)),
+                                        child: Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF3C3489)))),
                                       );
                                     },
                                   )
                                       : Container(
-                                    width: 60,
-                                    height: 44,
-                                    decoration: BoxDecoration(
-                                      color: bg,
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Center(
-                                      child: Text(icon, style: TextStyle(fontSize: 20)),
-                                    ),
+                                    width: 60, height: 44,
+                                    decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
+                                    child: Center(child: Text(icon, style: TextStyle(fontSize: 20))),
                                   ),
                                 ),
-
                                 SizedBox(width: 12),
-
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(
-                                        item['title'] ?? 'Unknown Video',
-                                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF26215C)),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
+                                      Text(item['title'] ?? 'Unknown Video', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF26215C)), maxLines: 1, overflow: TextOverflow.ellipsis),
                                       SizedBox(height: 4),
-                                      Row(
-                                        children: [
-                                          Container(
-                                            padding: EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                                            decoration: BoxDecoration(
-                                              color: bg,
-                                              borderRadius: BorderRadius.circular(20),
-                                            ),
-                                            child: Text(category,
-                                                style: TextStyle(fontSize: 9, color: color, fontWeight: FontWeight.w500)),
-                                          ),
-                                          SizedBox(width: 6),
-                                          Text(
-                                            formatDate(item['watched_at'] ?? ''),
-                                            style: TextStyle(fontSize: 10, color: Colors.grey),
-                                          ),
-                                        ],
-                                      ),
+                                      Row(children: [
+                                        Container(
+                                          padding: EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                          decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
+                                          child: Text(category, style: TextStyle(fontSize: 9, color: color, fontWeight: FontWeight.w500)),
+                                        ),
+                                        SizedBox(width: 6),
+                                        Text(formatDate(item['watched_at'] ?? ''), style: TextStyle(fontSize: 10, color: Colors.grey)),
+                                      ]),
                                     ],
                                   ),
                                 ),
-
-                                // Safe badge
                                 Container(
                                   padding: EdgeInsets.all(6),
-                                  decoration: BoxDecoration(
-                                    color: Color(0xFFEAF3DE),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
+                                  decoration: BoxDecoration(color: Color(0xFFEAF3DE), borderRadius: BorderRadius.circular(8)),
                                   child: Icon(Icons.shield, color: Color(0xFF3B6D11), size: 14),
                                 ),
-
                               ],
                             ),
                           );
                         },
                       ),
                     ),
-
                   ],
                 ),
               ),
             ),
-
           ],
         ),
       ),
@@ -576,37 +417,25 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Set Daily Limit',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF3C3489))),
+        title: Text('Set Daily Limit', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF3C3489))),
         content: StatefulBuilder(
           builder: (context, setDialogState) {
             return Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  '$selectedMinutes minutes',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFFE24B4A)),
-                ),
+                Text('$selectedMinutes minutes', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFFE24B4A))),
                 Slider(
-                  value: selectedMinutes.toDouble(),
-                  min: 15,
-                  max: 120,
-                  divisions: 21,
-                  activeColor: Color(0xFFE24B4A),
-                  inactiveColor: Color(0xFFEEEDFE),
+                  value: selectedMinutes.toDouble(), min: 15, max: 120, divisions: 21,
+                  activeColor: Color(0xFFE24B4A), inactiveColor: Color(0xFFEEEDFE),
                   onChanged: (value) => setDialogState(() => selectedMinutes = value.toInt()),
                 ),
-                Text('Min: 15 min  ·  Max: 120 min',
-                    style: TextStyle(fontSize: 11, color: Colors.grey)),
+                Text('Min: 15 min  ·  Max: 120 min', style: TextStyle(fontSize: 11, color: Colors.grey)),
               ],
             );
           },
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: TextStyle(color: Colors.grey)),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: Text('Cancel', style: TextStyle(color: Colors.grey))),
           ElevatedButton(
             onPressed: () async {
               final newLimit = selectedMinutes * 60;
@@ -614,10 +443,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               await ScreenTimeService.setLimit(newLimit);
               Navigator.pop(context);
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Color(0xFFE24B4A),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Color(0xFFE24B4A), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
             child: Text('Save', style: TextStyle(color: Colors.white)),
           ),
         ],
