@@ -58,8 +58,9 @@ class _ChildProfileScreenState extends State<ChildProfileScreen> {
     );
 
     setState(() => isLoading = false);
-
     if (result['childId'] != null) {
+      // ✅ Save the real childId
+      await ApiService.saveChildId(result['childId']);
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const HomeScreen()),

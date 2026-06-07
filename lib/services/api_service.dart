@@ -47,6 +47,16 @@ class ApiService {
     final id = await _storage.read(key: 'parent_id');
     return int.tryParse(id ?? '0') ?? 0;
   }
+  // ── SAVE CHILD ID ──
+  static Future<void> saveChildId(int id) async {
+    await _storage.write(key: 'child_id', value: id.toString());
+  }
+
+// ── GET CHILD ID ──
+  static Future<int> getChildId() async {
+    final id = await _storage.read(key: 'child_id');
+    return int.tryParse(id ?? '1') ?? 1;
+  }
 
   // ── REGISTER ──
   static Future<Map<String, dynamic>> register(String name, String email,

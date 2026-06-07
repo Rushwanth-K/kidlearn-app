@@ -287,8 +287,9 @@ super.dispose();
                               return GestureDetector(
                                 onTap: () async {
                                   // Log this video play to watch history
+                                  final childId = await ApiService.getChildId();
                                   await ApiService.logWatchHistory(
-                                    childId: 1,
+                                    childId: childId,
                                     videoId: video['id'],
                                   );
                                   Navigator.push(
