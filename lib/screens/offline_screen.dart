@@ -1,7 +1,10 @@
+
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../database_helper.dart';
+import '../screen_time_service.dart';
 import 'video_player_screen.dart';
+import 'dart:async';
 
 class OfflineVideosScreen extends StatefulWidget {
   const OfflineVideosScreen({super.key});
@@ -14,6 +17,9 @@ class _OfflineVideosScreenState extends State<OfflineVideosScreen> {
 
   List<Map<String, dynamic>> videos = [];
   String selectedCategory = 'All';
+
+  // ✅ NEW — screen time timer
+  Timer? _timer;
 
   final List<String> categories = [
     'All', 'Education', 'Creativity', 'Nature', 'Stories', 'Music'
@@ -50,6 +56,21 @@ class _OfflineVideosScreenState extends State<OfflineVideosScreen> {
   void initState() {
     super.initState();
     loadVideos();
+    _startTimer(); // ✅ NEW — start tracking screen time
+  }
+
+  // ✅ NEW — same pattern as online_screen.dart
+  void _startTimer() {
+    _timer = Timer.periodic(Duration(seconds: 1), (timer) async {
+      await ScreenTimeService.addSeconds(1);
+      print('Offline screen time: +1 second');
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel(); // ✅ NEW — stop timer when leaving screen
+    super.dispose();
   }
 
   Future<void> loadVideos() async {
@@ -129,7 +150,6 @@ class _OfflineVideosScreenState extends State<OfflineVideosScreen> {
   }
 
   Future<void> deleteVideo(int id) async {
-    // Show confirmation dialog
     bool? confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -164,7 +184,6 @@ class _OfflineVideosScreenState extends State<OfflineVideosScreen> {
     return videos.where((v) => v['category'] == selectedCategory).toList();
   }
 
-  // Count videos per category
   int countByCategory(String cat) {
     if (cat == 'All') return videos.length;
     return videos.where((v) => v['category'] == cat).length;
@@ -534,19 +553,23 @@ class _OfflineVideosScreenState extends State<OfflineVideosScreen> {
 
                                 SizedBox(width: 8),
 
-                                // Play button
+                                // ✅ Play button — timer pauses while video plays
                                 GestureDetector(
-                                  onTap: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          VideoPlayerScreen(
-                                            videoPath: video['file_path'],
-                                            videoTitle: video['title'],
-                                            isOnline: false,
-                                          ),
-                                    ),
-                                  ),
+                                  onTap: () async {
+                                    _timer?.cancel(); // ✅ pause timer while video plays
+                                    await Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            VideoPlayerScreen(
+                                              videoPath: video['file_path'],
+                                              videoTitle: video['title'],
+                                              isOnline: false,
+                                            ),
+                                      ),
+                                    );
+                                    _startTimer(); // ✅ resume timer when back
+                                  },
                                   child: Container(
                                     width: 34,
                                     height: 34,
