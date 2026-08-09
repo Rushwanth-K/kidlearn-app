@@ -216,6 +216,50 @@ class ApiService {
     }
   }
 
+  // ── GET SCHOOL VIDEOS ──
+  static Future<List<dynamic>> getSchoolVideos(String schoolId, String standardId) async {
+    try {
+      final token = await getToken();
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/videos/school/$schoolId/$standardId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+      if (response.statusCode == 404) return [];
+      return jsonDecode(response.body);
+    } catch (e) {
+      return [];
+    }
+  }
+
+// ── LINK CHILD TO SCHOOL ──
+  static Future<Map<String, dynamic>> linkChildToSchool({
+    required int childId,
+    required String schoolId,
+    required String standardId,
+  }) async {
+    try {
+      final token = await getToken();
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/videos/school/link'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'child_id': childId,
+          'school_id': schoolId,
+          'standard_id': standardId,
+        }),
+      );
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'error': 'Cannot connect to server'};
+    }
+  }
+
   // ── LOG WATCH HISTORY ──
   static Future<void> logWatchHistory({
     required int childId,

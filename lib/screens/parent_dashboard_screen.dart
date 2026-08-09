@@ -30,7 +30,6 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         ],
       ),
     );
-
     if (confirm == true) {
       await ApiService.logout();
       Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => LoginScreen()), (route) => false);
@@ -41,10 +40,11 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   bool isLoading = true;
   int totalSeconds = 0;
   int limitSeconds = 2700;
-
-  // ✅ NEW — real child data
   String _childName = 'Child';
   int _childAge = 0;
+
+  // ✅ NEW — selected tab for bottom section
+  int _selectedTab = 0; // 0=History, 1=Categories, 2=Weekly
 
   final Map<String, Color> categoryColors = {
     'Education':  Color(0xFF185FA5),
@@ -78,26 +78,19 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
   Future<void> loadDashboard() async {
     setState(() => isLoading = true);
-
-    // ✅ Fetch watch history, children, and screen time together
     final results = await Future.wait([
       ApiService.getWatchHistory(widget.parentId),
       ApiService.getChildren(widget.parentId),
     ]);
-
     final history = results[0] as List<dynamic>;
     final children = results[1] as List<dynamic>;
-
     final used = await ScreenTimeService.getTodaySeconds();
     final limit = await ScreenTimeService.getLimit();
-
     setState(() {
       watchHistory = history;
       isLoading = false;
       totalSeconds = used;
       limitSeconds = limit;
-
-      // ✅ Show first child's real name and age
       if (children.isNotEmpty) {
         _childName = children[0]['name'] ?? 'Child';
         _childAge = children[0]['age'] ?? 0;
@@ -119,9 +112,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       if (diff.inHours < 24) return 'Today ${date.hour}:${date.minute.toString().padLeft(2, '0')} ${date.hour < 12 ? 'AM' : 'PM'}';
       if (diff.inDays == 1) return 'Yesterday';
       return '${date.day}/${date.month}/${date.year}';
-    } catch (e) {
-      return dateStr;
-    }
+    } catch (e) { return dateStr; }
   }
 
   String get topCategory {
@@ -142,6 +133,60 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         return date.day == today.day && date.month == today.month && date.year == today.year;
       } catch (e) { return false; }
     }).length;
+  }
+
+  // ✅ NEW — category breakdown counts
+  Map<String, int> get categoryCounts {
+    final Map<String, int> counts = {};
+    for (var item in watchHistory) {
+      final cat = item['category'] ?? 'Other';
+      counts[cat] = (counts[cat] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  // ✅ NEW — weekly videos count (last 7 days)
+  Map<String, int> get weeklyData {
+    final Map<String, int> data = {};
+    final days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    for (var d in days) data[d] = 0;
+
+    final now = DateTime.now();
+    for (var item in watchHistory) {
+      try {
+        final date = DateTime.parse(item['watched_at']).toLocal();
+        final diff = now.difference(date).inDays;
+        if (diff < 7) {
+          final dayName = days[date.weekday - 1];
+          data[dayName] = (data[dayName] ?? 0) + 1;
+        }
+      } catch (e) {}
+    }
+    return data;
+  }
+
+  // ✅ NEW — watch streak calculation
+  int get watchStreak {
+    if (watchHistory.isEmpty) return 0;
+    final Set<String> watchedDates = {};
+    for (var item in watchHistory) {
+      try {
+        final date = DateTime.parse(item['watched_at']).toLocal();
+        watchedDates.add('${date.year}-${date.month}-${date.day}');
+      } catch (e) {}
+    }
+    int streak = 0;
+    DateTime current = DateTime.now();
+    while (true) {
+      final key = '${current.year}-${current.month}-${current.day}';
+      if (watchedDates.contains(key)) {
+        streak++;
+        current = current.subtract(Duration(days: 1));
+      } else {
+        break;
+      }
+    }
+    return streak;
   }
 
   @override
@@ -202,11 +247,8 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text("Today's Screen Time", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white)),
-                                // ✅ CHANGED — real child name and age
-                                Text(
-                                  _childAge > 0 ? '$_childName · Age $_childAge' : _childName,
-                                  style: TextStyle(fontSize: 10, color: Color(0xFFAFA9EC)),
-                                ),
+                                Text(_childAge > 0 ? '$_childName · Age $_childAge' : _childName,
+                                    style: TextStyle(fontSize: 10, color: Color(0xFFAFA9EC))),
                               ],
                             ),
                             Column(
@@ -267,7 +309,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                 child: Column(
                   children: [
 
-                    // Stats cards
+                    // ✅ Stats cards row
                     Padding(
                       padding: EdgeInsets.fromLTRB(16, 16, 16, 0),
                       child: Row(
@@ -277,7 +319,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                             decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Color(0xFFEEEDFE), width: 0.5)),
                             child: Column(children: [
                               Text('$todayVideos', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF3C3489))),
-                              Text('Videos today', style: TextStyle(fontSize: 9, color: Colors.grey)),
+                              Text('Today', style: TextStyle(fontSize: 9, color: Colors.grey)),
                             ]),
                           )),
                           SizedBox(width: 8),
@@ -286,16 +328,24 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                             decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Color(0xFFEEEDFE), width: 0.5)),
                             child: Column(children: [
                               Text('${watchHistory.length}', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFFE24B4A))),
-                              Text('Total watched', style: TextStyle(fontSize: 9, color: Colors.grey)),
+                              Text('Total', style: TextStyle(fontSize: 9, color: Colors.grey)),
                             ]),
                           )),
                           SizedBox(width: 8),
+                          // ✅ NEW — Watch streak card
                           Expanded(child: Container(
                             padding: EdgeInsets.all(12),
                             decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Color(0xFFEEEDFE), width: 0.5)),
                             child: Column(children: [
-                              Text(categoryIcons[topCategory] ?? '🎬', style: TextStyle(fontSize: 22)),
-                              Text('Top category', style: TextStyle(fontSize: 9, color: Colors.grey)),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text('🔥', style: TextStyle(fontSize: 16)),
+                                  SizedBox(width: 2),
+                                  Text('$watchStreak', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFFE24B4A))),
+                                ],
+                              ),
+                              Text('Day streak', style: TextStyle(fontSize: 9, color: Colors.grey)),
                             ]),
                           )),
                         ],
@@ -304,109 +354,356 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
                     SizedBox(height: 14),
 
-                    // Watch history header
+                    // ✅ NEW — Tab switcher
                     Padding(
                       padding: EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('Watch History', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF3C3489))),
-                          GestureDetector(onTap: loadDashboard, child: Text('Refresh', style: TextStyle(fontSize: 11, color: Color(0xFFE24B4A)))),
-                        ],
+                      child: Container(
+                        decoration: BoxDecoration(color: Color(0xFFEEEDFE), borderRadius: BorderRadius.circular(12)),
+                        padding: EdgeInsets.all(4),
+                        child: Row(
+                          children: [
+                            _buildTab('History', 0),
+                            _buildTab('Categories', 1),
+                            _buildTab('Weekly', 2),
+                          ],
+                        ),
                       ),
                     ),
 
                     SizedBox(height: 10),
 
-                    // Watch history list
+                    // ✅ Tab content
                     Expanded(
                       child: isLoading
                           ? Center(child: CircularProgressIndicator(color: Color(0xFFE24B4A)))
-                          : watchHistory.isEmpty
-                          ? Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        Text('📺', style: TextStyle(fontSize: 50)),
-                        SizedBox(height: 12),
-                        Text('No watch history yet', style: TextStyle(color: Colors.grey, fontSize: 14, fontWeight: FontWeight.w500)),
-                        SizedBox(height: 6),
-                        Text('Videos your child watches will appear here', style: TextStyle(color: Colors.grey.shade400, fontSize: 12), textAlign: TextAlign.center),
-                      ])
-                          : ListView.builder(
-                        padding: EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: watchHistory.length,
-                        itemBuilder: (context, index) {
-                          final item = watchHistory[index];
-                          final category = item['category'] ?? 'Education';
-                          final color = categoryColors[category] ?? Color(0xFF3C3489);
-                          final bg = categoryBgColors[category] ?? Color(0xFFEEEDFE);
-                          final icon = categoryIcons[category] ?? '🎬';
-                          final thumbnailUrl = getThumbnailUrl(item['url']);
-
-                          return Container(
-                            margin: EdgeInsets.only(bottom: 8),
-                            padding: EdgeInsets.all(12),
-                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Color(0xFFEEEDFE), width: 0.5)),
-                            child: Row(
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: thumbnailUrl.isNotEmpty
-                                      ? Image.network(thumbnailUrl, width: 60, height: 44, fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) => Container(
-                                      width: 60, height: 44,
-                                      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
-                                      child: Center(child: Text(icon, style: TextStyle(fontSize: 20))),
-                                    ),
-                                    loadingBuilder: (context, child, loadingProgress) {
-                                      if (loadingProgress == null) return child;
-                                      return Container(
-                                        width: 60, height: 44,
-                                        decoration: BoxDecoration(color: Color(0xFFEEEDFE), borderRadius: BorderRadius.circular(10)),
-                                        child: Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF3C3489)))),
-                                      );
-                                    },
-                                  )
-                                      : Container(
-                                    width: 60, height: 44,
-                                    decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
-                                    child: Center(child: Text(icon, style: TextStyle(fontSize: 20))),
-                                  ),
-                                ),
-                                SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(item['title'] ?? 'Unknown Video', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF26215C)), maxLines: 1, overflow: TextOverflow.ellipsis),
-                                      SizedBox(height: 4),
-                                      Row(children: [
-                                        Container(
-                                          padding: EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                                          decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
-                                          child: Text(category, style: TextStyle(fontSize: 9, color: color, fontWeight: FontWeight.w500)),
-                                        ),
-                                        SizedBox(width: 6),
-                                        Text(formatDate(item['watched_at'] ?? ''), style: TextStyle(fontSize: 10, color: Colors.grey)),
-                                      ]),
-                                    ],
-                                  ),
-                                ),
-                                Container(
-                                  padding: EdgeInsets.all(6),
-                                  decoration: BoxDecoration(color: Color(0xFFEAF3DE), borderRadius: BorderRadius.circular(8)),
-                                  child: Icon(Icons.shield, color: Color(0xFF3B6D11), size: 14),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
+                          : _selectedTab == 0
+                          ? _buildHistoryTab()
+                          : _selectedTab == 1
+                          ? _buildCategoriesTab()
+                          : _buildWeeklyTab(),
                     ),
+
                   ],
                 ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // ✅ Tab button builder
+  Widget _buildTab(String label, int index) {
+    final isSelected = _selectedTab == index;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _selectedTab = index),
+        child: Container(
+          padding: EdgeInsets.symmetric(vertical: 7),
+          decoration: BoxDecoration(
+            color: isSelected ? Color(0xFFE24B4A) : Colors.transparent,
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+              color: isSelected ? Colors.white : Color(0xFF3C3489),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ✅ HISTORY TAB — existing watch history
+  Widget _buildHistoryTab() {
+    if (watchHistory.isEmpty) {
+      return Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Text('📺', style: TextStyle(fontSize: 50)),
+        SizedBox(height: 12),
+        Text('No watch history yet', style: TextStyle(color: Colors.grey, fontSize: 14, fontWeight: FontWeight.w500)),
+        SizedBox(height: 6),
+        Text('Videos your child watches will appear here', style: TextStyle(color: Colors.grey.shade400, fontSize: 12), textAlign: TextAlign.center),
+      ]);
+    }
+    return ListView.builder(
+      padding: EdgeInsets.symmetric(horizontal: 16),
+      itemCount: watchHistory.length,
+      itemBuilder: (context, index) {
+        final item = watchHistory[index];
+        final category = item['category'] ?? 'Education';
+        final color = categoryColors[category] ?? Color(0xFF3C3489);
+        final bg = categoryBgColors[category] ?? Color(0xFFEEEDFE);
+        final icon = categoryIcons[category] ?? '🎬';
+        final thumbnailUrl = getThumbnailUrl(item['url']);
+
+        return Container(
+          margin: EdgeInsets.only(bottom: 8),
+          padding: EdgeInsets.all(12),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Color(0xFFEEEDFE), width: 0.5)),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: thumbnailUrl.isNotEmpty
+                    ? Image.network(thumbnailUrl, width: 60, height: 44, fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    width: 60, height: 44,
+                    decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
+                    child: Center(child: Text(icon, style: TextStyle(fontSize: 20))),
+                  ),
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Container(
+                      width: 60, height: 44,
+                      decoration: BoxDecoration(color: Color(0xFFEEEDFE), borderRadius: BorderRadius.circular(10)),
+                      child: Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF3C3489)))),
+                    );
+                  },
+                )
+                    : Container(
+                  width: 60, height: 44,
+                  decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
+                  child: Center(child: Text(icon, style: TextStyle(fontSize: 20))),
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(item['title'] ?? 'Unknown Video', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF26215C)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    SizedBox(height: 4),
+                    Row(children: [
+                      Container(
+                        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
+                        child: Text(category, style: TextStyle(fontSize: 9, color: color, fontWeight: FontWeight.w500)),
+                      ),
+                      SizedBox(width: 6),
+                      Text(formatDate(item['watched_at'] ?? ''), style: TextStyle(fontSize: 10, color: Colors.grey)),
+                    ]),
+                  ],
+                ),
+              ),
+              Container(
+                padding: EdgeInsets.all(6),
+                decoration: BoxDecoration(color: Color(0xFFEAF3DE), borderRadius: BorderRadius.circular(8)),
+                child: Icon(Icons.shield, color: Color(0xFF3B6D11), size: 14),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // ✅ NEW — CATEGORIES TAB
+  Widget _buildCategoriesTab() {
+    final counts = categoryCounts;
+    if (counts.isEmpty) {
+      return Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Text('📊', style: TextStyle(fontSize: 50)),
+        SizedBox(height: 12),
+        Text('No data yet', style: TextStyle(color: Colors.grey, fontSize: 14)),
+      ]);
+    }
+
+    final total = counts.values.fold(0, (a, b) => a + b);
+
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Content breakdown', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF3C3489))),
+          SizedBox(height: 4),
+          Text('Based on ${watchHistory.length} videos watched', style: TextStyle(fontSize: 11, color: Colors.grey)),
+          SizedBox(height: 16),
+
+          ...counts.entries.map((entry) {
+            final cat = entry.key;
+            final count = entry.value;
+            final percent = total > 0 ? count / total : 0.0;
+            final color = categoryColors[cat] ?? Color(0xFF3C3489);
+            final bg = categoryBgColors[cat] ?? Color(0xFFEEEDFE);
+            final icon = categoryIcons[cat] ?? '🎬';
+
+            return Container(
+              margin: EdgeInsets.only(bottom: 12),
+              padding: EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Color(0xFFEEEDFE), width: 0.5),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 36, height: 36,
+                        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
+                        child: Center(child: Text(icon, style: TextStyle(fontSize: 18))),
+                      ),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(cat, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF26215C))),
+                            Text('$count video${count != 1 ? 's' : ''}', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                          ],
+                        ),
+                      ),
+                      Text('${(percent * 100).toStringAsFixed(0)}%',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
+                    ],
+                  ),
+                  SizedBox(height: 10),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: percent,
+                      backgroundColor: bg,
+                      valueColor: AlwaysStoppedAnimation<Color>(color),
+                      minHeight: 6,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        ],
+      ),
+    );
+  }
+
+  // ✅ NEW — WEEKLY TAB
+  Widget _buildWeeklyTab() {
+    final data = weeklyData;
+    final maxVal = data.values.fold(0, (a, b) => a > b ? a : b);
+    final days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final today = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][DateTime.now().weekday - 1];
+
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('This week\'s activity', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF3C3489))),
+          SizedBox(height: 4),
+          Text('Videos watched per day', style: TextStyle(fontSize: 11, color: Colors.grey)),
+          SizedBox(height: 20),
+
+          // ✅ Bar chart
+          Container(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Color(0xFFEEEDFE), width: 0.5),
+            ),
+            child: Column(
+              children: [
+                SizedBox(
+                  height: 120,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: days.map((day) {
+                      final count = data[day] ?? 0;
+                      final barHeight = maxVal > 0 ? (count / maxVal) * 100 : 0.0;
+                      final isToday = day == today;
+
+                      return Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          if (count > 0)
+                            Text('$count', style: TextStyle(fontSize: 9, color: Colors.grey, fontWeight: FontWeight.w500)),
+                          SizedBox(height: 4),
+                          Container(
+                            width: 28,
+                            height: barHeight > 0 ? barHeight : 6,
+                            decoration: BoxDecoration(
+                              color: isToday
+                                  ? Color(0xFFE24B4A)
+                                  : count > 0
+                                  ? Color(0xFF3C3489)
+                                  : Color(0xFFEEEDFE),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                          ),
+                        ],
+                      );
+                    }).toList(),
+                  ),
+                ),
+                SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: days.map((day) {
+                    final isToday = day == today;
+                    return SizedBox(
+                      width: 28,
+                      child: Text(
+                        day,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 9,
+                          color: isToday ? Color(0xFFE24B4A) : Colors.grey,
+                          fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+
+          SizedBox(height: 16),
+
+          // ✅ Weekly summary
+          Container(
+            padding: EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Color(0xFFEEEDFE), width: 0.5),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                Column(children: [
+                  Text('${data.values.fold(0, (a, b) => a + b)}',
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF3C3489))),
+                  Text('This week', style: TextStyle(fontSize: 9, color: Colors.grey)),
+                ]),
+                Container(width: 1, height: 40, color: Color(0xFFEEEDFE)),
+                Column(children: [
+                  Text('${data.values.where((v) => v > 0).length}',
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFFE24B4A))),
+                  Text('Active days', style: TextStyle(fontSize: 9, color: Colors.grey)),
+                ]),
+                Container(width: 1, height: 40, color: Color(0xFFEEEDFE)),
+                Column(children: [
+                  Row(children: [
+                    Text('🔥', style: TextStyle(fontSize: 16)),
+                    Text('$watchStreak',
+                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFFE24B4A))),
+                  ]),
+                  Text('Day streak', style: TextStyle(fontSize: 9, color: Colors.grey)),
+                ]),
+              ],
+            ),
+          ),
+
+        ],
       ),
     );
   }

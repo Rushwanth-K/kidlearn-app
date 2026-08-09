@@ -6,6 +6,7 @@ import 'parent_dashboard_screen.dart';
 import 'locked_screen.dart';
 import '../screen_time_service.dart';
 import '../services/api_service.dart';
+import 'school_videos_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -58,6 +59,14 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _parentId = id;
     });
+  }
+
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour >= 5 && hour < 12) return 'Good morning 👋';
+    if (hour >= 12 && hour < 17) return 'Good afternoon 👋';
+    if (hour >= 17 && hour < 21) return 'Good evening 👋';
+    return 'Good night 👋';
   }
 
   Future<void> loadScreenTime() async {
@@ -121,7 +130,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Good morning 👋',
+                              _getGreeting(),
                               style: TextStyle(fontSize: 12, color: Color(0xFFAFA9EC)),
                             ),
                             // ✅ CHANGED — was hardcoded 'Hi Arjun!', now dynamic
@@ -345,6 +354,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       SizedBox(height: 10),
 
                       // School Videos card
+                  GestureDetector(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => SchoolVideosScreen()),
+                    ),
+                    child:
                       Container(
                         width: double.infinity,
                         padding: EdgeInsets.all(14),
@@ -385,10 +400,11 @@ class _HomeScreenState extends State<HomeScreen> {
                               child: Text('Coming soon',
                                   style: TextStyle(fontSize: 9, color: Color(0xFFB5D4F4))),
                             ),
+
                           ],
                         ),
                       ),
-
+                  ),
                       SizedBox(height: 10),
 
                       // Parent Dashboard button
